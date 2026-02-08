@@ -1,0 +1,121 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  MANAGER
+  WORKER
+}
+
+enum Language {
+  ar
+  en
+}
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  name          String
+  passwordHash  String
+  role          Role     @default(WORKER)
+  language      Language @default(ar)
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model Barn {
+  id        String   @id @default(cuid())
+  name      String
+  code      String?  @unique
+  capacity  Int?
+  areaM2    Float?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  cycles    Cycle[]
+  sensors   SensorReading[]
+}
+
+model Cycle {
+  id                 String   @id @default(cuid())
+  barnId             String
+  barn               Barn     @relation(fields: [barnId], references: [id], onDelete: Cascade)
+
+  chickType           String
+  startDate           DateTime
+  expectedDays        Int
+  initialChicks       Int
+  chickPrice          Float
+  feedPricePerKg      Float
+
+  targetMortalityPct  Float?  // optional
+  targetFcr           Float?  // optional
+
+  // Alert thresholds (simple MVP)
+  tempMinC            Float? 
+  tempMaxC            Float?
+  humidityMinPct      Float?
+  humidityMaxPct      Float?
+  ammoniaMaxPpm       Float?
+
+  status              String   @default("ACTIVE") // ACTIVE/CLOSED
+
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  dailyRecords       DailyRecord[]
+  medications        MedicationLog[]
+}
+
+model DailyRecord {
+  id             String   @id @default(cuid())
+  cycleId        String
+  cycle          Cycle    @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+
+  recordDate     DateTime
+  feedKg         Float
+  mortalityCount Int
+  avgWeightG     Float?
+  medicationCost Float?
+  notes          String?
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([cycleId, recordDate])
+}
+
+model MedicationLog {
+  id         String   @id @default(cuid())
+  cycleId    String
+  cycle      Cycle    @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+
+  recordDate DateTime
+  name       String
+  cost       Float?
+  notes      String?
+
+  createdAt  DateTime @default(now())
+}
+
+model SensorReading {
+  id            String   @id @default(cuid())
+  barnId        String
+  barn          Barn     @relation(fields: [barnId], references: [id], onDelete: Cascade)
+
+  timestamp     DateTime
+  temperatureC  Float?
+  humidityPct   Float?
+  ammoniaPpm    Float?
+  source        String   @default("manual") // manual/iot
+
+  createdAt     DateTime @default(now())
+  @@index([barnId, timestamp])
+}
